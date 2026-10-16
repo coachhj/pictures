@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>이미지카드 고르기</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@600&display=swap">
+<style>
+/* Layout: sticky header, two-column masonry of photos at natural ratio, saved photos get a numbered tab, bottom tray lists picks in order. */
+:root{
+  --bg:#f3f1ee; --surface:#ffffff; --fg:#23211f; --muted:#6f6a64; --line:#d9d4cd;
+  --accent:#c2410c; --accent-fg:#ffffff; --scrim:rgba(20,18,16,.86);
+  --font-display:"Noto Serif KR","Batang",serif;
+  --font-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#161513; --surface:#22201d; --fg:#efebe5; --muted:#a09a92; --line:#38352f;
+    --accent:#f08a4b; --accent-fg:#1a1208; --scrim:rgba(0,0,0,.9); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#161513; --surface:#22201d; --fg:#efebe5; --muted:#a09a92; --line:#38352f;
+  --accent:#f08a4b; --accent-fg:#1a1208; --scrim:rgba(0,0,0,.9); color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;
+  background:var(--bg); color:var(--fg); font-family:var(--font-body);
+  font-size:15px; line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0 120px; -webkit-tap-highlight-color:transparent;
+}
+header{
+  position:sticky; top:env(safe-area-inset-top,0px); z-index:5;
+  background:var(--bg); padding-block:14px 10px; border-bottom:1px solid var(--line);
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px;
+}
+h1{font-family:var(--font-display); font-size:21px; margin:0; font-weight:600; letter-spacing:-.01em; flex:1 1 auto}
+.count{font-size:14px; color:var(--muted); font-variant-numeric:tabular-nums}
+.count b{color:var(--accent); font-size:17px}
+.tabs{display:flex; gap:6px; flex:1 0 100%}
+.tabs button{
+  flex:1; min-height:40px; border:1px solid var(--line); background:var(--surface); color:var(--fg);
+  font:inherit; font-weight:500; border-radius:8px; cursor:pointer;
+}
+.tabs button[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-fg)}
+.hint{margin:12px 0 4px; font-size:13px; color:var(--muted)}
+.grid{columns:2; column-gap:10px; padding-top:8px}
+@media (min-width:640px){.grid{columns:3}}
+@media (min-width:980px){.grid{columns:4}}
+.card{
+  position:relative; display:block; width:100%; margin:0 0 10px; padding:0; border:0;
+  break-inside:avoid; border-radius:8px; overflow:hidden; background:var(--line);
+  cursor:pointer; outline-offset:2px; font:inherit; color:inherit;
+}
+.card img{display:block; width:100%; height:100%; object-fit:cover; transition:transform .25s, opacity .2s}
+.card::after{content:""; position:absolute; inset:0; border-radius:8px; border:3px solid transparent; pointer-events:none}
+.card.on::after{border-color:var(--accent)}
+.card.on img{opacity:.92}
+.badge{
+  position:absolute; top:0; left:0; z-index:2; min-width:40px; padding:5px 10px 5px 9px;
+  background:var(--accent); color:var(--accent-fg); font-weight:700; font-size:18px;
+  font-variant-numeric:tabular-nums; letter-spacing:.02em; border-bottom-right-radius:8px;
+  transform-origin:top left; animation:pop .18s ease-out;
+}
+.card:not(.on) .badge{display:none}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+.zoom{
+  position:absolute; right:6px; bottom:6px; z-index:2; width:36px; height:36px; border:0; border-radius:50%;
+  background:var(--scrim); color:#fff; cursor:pointer; display:grid; place-items:center; padding:0;
+}
+.zoom svg{width:18px; height:18px}
+.empty{padding:48px 0; text-align:center; color:var(--muted)}
+.tray{
+  position:fixed; left:0; right:0; bottom:0; z-index:6; background:var(--surface); border-top:1px solid var(--line);
+  padding-top:10px; padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex; align-items:center; gap:10px;
+}
+.chips{flex:1; min-width:0; display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; min-height:34px; align-items:center}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto; min-width:38px; min-height:34px; padding:0 10px; border:0; border-radius:17px;
+  background:var(--accent); color:var(--accent-fg); font:inherit; font-weight:700; font-variant-numeric:tabular-nums; cursor:pointer;
+}
+.none{color:var(--muted); font-size:13px}
+.clear{
+  flex:0 0 auto; min-height:40px; padding:0 14px; border:1px solid var(--line); background:transparent; color:var(--fg);
+  font:inherit; border-radius:8px; cursor:pointer;
+}
+.clear.arm{background:var(--accent); border-color:var(--accent); color:var(--accent-fg)}
+.clear[disabled]{opacity:.4; cursor:default}
+.viewer{
+  position:fixed; inset:0; z-index:20; background:var(--scrim); display:flex; flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.viewer[hidden]{display:none}
+.stage{flex:1; min-height:0; display:grid; place-items:center; padding:12px max(12px,env(safe-area-inset-left,0px))}
+.stage img{max-width:100%; max-height:100%; object-fit:contain; border-radius:6px}
+.vbar{display:flex; gap:10px; padding:10px max(16px,env(safe-area-inset-left,0px)) 14px; align-items:center; justify-content:space-between}
+.vnum{color:#fff; font-weight:700; font-size:20px; font-variant-numeric:tabular-nums}
+.vbtn{min-height:44px; padding:0 18px; border-radius:10px; border:1px solid rgba(255,255,255,.35); background:transparent; color:#fff; font:inherit; font-weight:500; cursor:pointer}
+.vbtn.pri{background:var(--accent); border-color:var(--accent); color:var(--accent-fg)}
+:focus-visible{outline:3px solid var(--accent)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>이미지카드</h1>
+  <div class="count" aria-live="polite">담은 사진 <b id="n">0</b> / 56</div>
+  <div class="tabs" role="group" aria-label="보기">
+    <button id="tAll" aria-pressed="true">전체</button>
+    <button id="tSaved" aria-pressed="false">담은 것만</button>
+  </div>
+</header>
+<p class="hint">사진을 누르면 담기고, 다시 누르면 빠집니다. 돋보기를 누르면 크게 봅니다.</p>
+<main class="grid" id="grid"></main>
+<div class="empty" id="empty" hidden>아직 담은 사진이 없습니다.</div>
+
+<div class="tray">
+  <div class="chips" id="chips"></div>
+  <button class="clear" id="clear" disabled>비우기</button>
+</div>
+
+<div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="큰 사진">
+  <div class="stage"><img id="vimg" alt=""></div>
+  <div class="vbar">
+    <span class="vnum" id="vnum"></span>
+    <span style="display:flex;gap:8px">
+      <button class="vbtn pri" id="vsave">담기</button>
+      <button class="vbtn" id="vclose">닫기</button>
+    </span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var RATIO={"01":0.67,"02":1.501,"03":1.487,"04":1.43,"05":1.368,"06":1.388,"07":0.68,"08":0.69,"09":1.5,"10":1.511,"11":1.506,"12":1.5,"13":1.818,"14":1.506,"15":1.634,"16":1.42,"17":1.616,"18":1.415,"19":1.506,"20":1.5,"21":1.5,"22":1.5,"23":1.5,"24":1.585,"25":1.5,"26":1.5,"27":1.506,"28":1.5,"29":1.308,"30":1.501,"31":1.5,"32":1.5,"33":1.501,"34":1.5,"35":1.778,"36":1.5,"37":1.48,"38":1.5,"39":1.501,"40":1.505,"41":1.779,"42":1.316,"43":1.5,"44":1.5,"45":1.504,"46":1.5,"47":1.333,"48":1.5,"49":1.198,"50":1.5,"51":1.505,"52":1.499,"53":1.333,"54":0.662,"55":1.499,"56":1.5};
+  var IDS=Object.keys(RATIO).sort();
+  var KEY="imagecard-picks-v1";
+  var picks=[], onlySaved=false, openId=null, armed=null;
+  try{var s=JSON.parse(localStorage.getItem(KEY)||"[]"); if(Array.isArray(s)) picks=s.filter(function(x){return RATIO[x]});}catch(e){}
+  function persist(){try{localStorage.setItem(KEY,JSON.stringify(picks));}catch(e){}}
+
+  var grid=document.getElementById("grid"), chips=document.getElementById("chips"),
+      nEl=document.getElementById("n"), clearBtn=document.getElementById("clear"),
+      empty=document.getElementById("empty"), viewer=document.getElementById("viewer");
+  var cards={};
+
+  IDS.forEach(function(id){
+    var b=document.createElement("button"); b.className="card"; b.type="button";
+    b.style.aspectRatio=String(RATIO[id]); b.setAttribute("aria-label","사진 "+id);
+    b.innerHTML='<img src="img/t/'+id+'.jpg" alt="" loading="lazy" decoding="async">'
+      +'<span class="badge">'+id+'</span>'
+      +'<span class="zoom" role="button" tabindex="0" aria-label="사진 '+id+' 크게 보기">'
+      +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>';
+    b.addEventListener("click",function(e){
+      if(e.target.closest(".zoom")){ openViewer(id); return; }
+      toggle(id);
+    });
+    b.querySelector(".zoom").addEventListener("keydown",function(e){
+      if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();openViewer(id);}
+    });
+    cards[id]=b; grid.appendChild(b);
+  });
+
+  function toggle(id){
+    var i=picks.indexOf(id);
+    if(i>=0) picks.splice(i,1); else picks.push(id);
+    persist(); render();
+  }
+
+  function render(){
+    nEl.textContent=picks.length;
+    IDS.forEach(function(id){
+      var on=picks.indexOf(id)>=0, c=cards[id];
+      c.classList.toggle("on",on); c.setAttribute("aria-pressed",on?"true":"false");
+      c.hidden = onlySaved && !on;
+    });
+    empty.hidden = !(onlySaved && picks.length===0);
+    chips.innerHTML="";
+    if(!picks.length){ var p=document.createElement("span"); p.className="none"; p.textContent="담은 사진의 번호가 여기에 쌓입니다."; chips.appendChild(p); }
+    picks.forEach(function(id){
+      var c=document.createElement("button"); c.className="chip"; c.textContent=id; c.type="button";
+      c.setAttribute("aria-label","사진 "+id+" 크게 보기");
+      c.addEventListener("click",function(){openViewer(id);});
+      chips.appendChild(c);
+    });
+    clearBtn.disabled=!picks.length;
+    if(!picks.length) disarm();
+    if(openId) syncViewer();
+  }
+
+  function disarm(){ armed=null; clearBtn.classList.remove("arm"); clearBtn.textContent="비우기"; }
+  clearBtn.addEventListener("click",function(){
+    if(!armed){
+      clearBtn.classList.add("arm"); clearBtn.textContent="정말 비우기";
+      armed=setTimeout(disarm,3000); return;
+    }
+    clearTimeout(armed); picks=[]; persist(); disarm(); render();
+  });
+
+  var tAll=document.getElementById("tAll"), tSaved=document.getElementById("tSaved");
+  function setView(v){
+    onlySaved=v; tAll.setAttribute("aria-pressed",String(!v)); tSaved.setAttribute("aria-pressed",String(v));
+    render(); window.scrollTo(0,0);
+  }
+  tAll.addEventListener("click",function(){setView(false);});
+  tSaved.addEventListener("click",function(){setView(true);});
+
+  var vimg=document.getElementById("vimg"), vnum=document.getElementById("vnum"), vsave=document.getElementById("vsave");
+  function syncViewer(){ var on=picks.indexOf(openId)>=0; vsave.textContent=on?"빼기":"담기"; vsave.classList.toggle("pri",!on); vnum.textContent=on?("No. "+openId+" · 담음"):("No. "+openId); }
+  function openViewer(id){ openId=id; vimg.src="img/l/"+id+".jpg"; vimg.alt="사진 "+id; viewer.hidden=false; syncViewer(); vsave.focus(); }
+  function closeViewer(){ viewer.hidden=true; openId=null; vimg.removeAttribute("src"); }
+  vsave.addEventListener("click",function(){ toggle(openId); });
+  document.getElementById("vclose").addEventListener("click",closeViewer);
+  viewer.addEventListener("click",function(e){ if(e.target===viewer||e.target.classList.contains("stage")) closeViewer(); });
+  document.addEventListener("keydown",function(e){ if(e.key==="Escape"&&!viewer.hidden) closeViewer(); });
+
+  render();
+})();
+</script>
+</body>
+</html>
