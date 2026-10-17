@@ -51,6 +51,15 @@ h1{font-family:var(--font-display); font-size:21px; margin:0; font-weight:600; l
 .grid{columns:2; column-gap:10px; padding-top:8px}
 @media (min-width:640px){.grid{columns:3}}
 @media (min-width:980px){.grid{columns:4}}
+/* 담은 사진 보기: 담은 순서대로 왼쪽→오른쪽 줄 배치, 길게 눌러 끌어서 순서 바꾸기 */
+.grid.saved{columns:auto; display:grid; grid-template-columns:repeat(2,1fr); gap:10px; align-items:start}
+@media (min-width:640px){.grid.saved{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:980px){.grid.saved{grid-template-columns:repeat(4,1fr)}}
+.grid.saved .card{margin:0; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none}
+.card img{pointer-events:none; -webkit-user-drag:none}
+.card.pressing{transform:scale(.96); transition:transform .35s ease}
+.card.dragging{opacity:.25}
+.ghost{position:fixed; z-index:30; margin:0; pointer-events:none; box-shadow:0 14px 34px rgba(0,0,0,.4); transform:scale(1.06); opacity:.95}
 .card{
   position:relative; display:block; width:100%; margin:0 0 10px; padding:0; border:0;
   break-inside:avoid; border-radius:8px; overflow:hidden; background:var(--line);
@@ -164,7 +173,8 @@ h1{font-family:var(--font-display); font-size:21px; margin:0; font-weight:600; l
     b.style.aspectRatio=String(RATIO[id]); b.setAttribute("aria-label","사진 "+id+" 크게 보기");
     b.innerHTML='<img src="img/t/'+id+'.jpg?v=2" alt="" loading="lazy" decoding="async">'
       +'<span class="badge">'+id+'</span>';
-    b.addEventListener("click",function(){ openViewer(id); });
+    b.dataset.id=id;
+    b.addEventListener("click",function(){ if(suppressClick){ suppressClick=false; return; } openViewer(id); });
     cards[id]=b; grid.appendChild(b);
   });
 
@@ -177,7 +187,9 @@ h1{font-family:var(--font-display); font-size:21px; margin:0; font-weight:600; l
       var on=picks.indexOf(id)>=0, c=cards[id];
       c.classList.toggle("on",on);
       c.hidden = onlySaved && !on;
+      c.style.order = on ? String(picks.indexOf(id)) : "";
     });
+    grid.classList.toggle("saved",onlySaved);
     empty.hidden = !(onlySaved && picks.length===0);
     chips.innerHTML="";
     if(!picks.length){ var p=document.createElement("span"); p.className="none"; p.textContent="담은 사진의 번호가 여기에 쌓입니다."; chips.appendChild(p); }
@@ -204,6 +216,9 @@ h1{font-family:var(--font-display); font-size:21px; margin:0; font-weight:600; l
   var tAll=document.getElementById("tAll"), tSaved=document.getElementById("tSaved");
   function setView(v){
     onlySaved=v; tAll.setAttribute("aria-pressed",String(!v)); tSaved.setAttribute("aria-pressed",String(v));
+    document.getElementById("hint").textContent = v
+      ? "사진을 길게 누른 채 끌면 순서를 바꿀 수 있습니다. 짧게 누르면 크게 봅니다."
+      : "사진을 누르면 크게 보입니다. 큰 화면에서 담거나 뺄 수 있습니다.";
     render(); window.scrollTo(0,0);
   }
   tAll.addEventListener("click",function(){setView(false);});
@@ -228,6 +243,73 @@ h1{font-family:var(--font-display); font-size:21px; margin:0; font-weight:600; l
   document.getElementById("vAll").addEventListener("click",function(){ closeViewer(); setView(false); });
   document.getElementById("vSaved").addEventListener("click",function(){ closeViewer(); setView(true); });
   document.addEventListener("keydown",function(e){ if(e.key==="Escape"&&!viewer.hidden) closeViewer(); });
+
+  /* 담은 사진 끌어서 순서 바꾸기 (마우스: 끌기 / 터치: 길게 누른 뒤 끌기) */
+  var drag=null, suppressClick=false, ghost=null, rafId=0;
+  grid.addEventListener("pointerdown",function(e){
+    if(!onlySaved || (e.pointerType==="mouse" && e.button!==0)) return;
+    var card=e.target.closest(".card"); if(!card || card.hidden) return;
+    var st={id:card.dataset.id, card:card, sx:e.clientX, sy:e.clientY, lx:e.clientX, ly:e.clientY,
+            pid:e.pointerId, mouse:e.pointerType==="mouse", active:false, timer:null};
+    drag=st;
+    if(!st.mouse){
+      card.classList.add("pressing");
+      st.timer=setTimeout(function(){ if(drag===st && !st.active) startDrag(); },380);
+    }
+  });
+  document.addEventListener("pointermove",function(e){
+    if(!drag || e.pointerId!==drag.pid) return;
+    drag.lx=e.clientX; drag.ly=e.clientY;
+    if(!drag.active){
+      var d=Math.hypot(e.clientX-drag.sx, e.clientY-drag.sy);
+      if(drag.mouse){ if(d>6) startDrag(); }
+      else if(d>10){ cancelPress(); }
+      return;
+    }
+    e.preventDefault(); moveGhost(); reorderAt(drag.lx,drag.ly);
+  });
+  document.addEventListener("pointerup",endDrag);
+  document.addEventListener("pointercancel",endDrag);
+  document.addEventListener("touchmove",function(e){ if(drag && drag.active) e.preventDefault(); },{passive:false});
+  grid.addEventListener("contextmenu",function(e){ if(onlySaved) e.preventDefault(); });
+
+  function cancelPress(){ if(!drag) return; clearTimeout(drag.timer); drag.card.classList.remove("pressing"); drag=null; }
+  function startDrag(){
+    var c=drag.card, r=c.getBoundingClientRect();
+    drag.active=true; drag.ox=drag.lx-r.left; drag.oy=drag.ly-r.top;
+    c.classList.remove("pressing");
+    ghost=c.cloneNode(true); ghost.classList.add("ghost"); ghost.classList.remove("dragging");
+    ghost.style.width=r.width+"px"; ghost.style.height=r.height+"px";
+    document.body.appendChild(ghost); moveGhost();
+    c.classList.add("dragging");
+    if(navigator.vibrate){ try{navigator.vibrate(15);}catch(_){} }
+    rafId=requestAnimationFrame(autoScroll);
+  }
+  function moveGhost(){ if(ghost){ ghost.style.left=(drag.lx-drag.ox)+"px"; ghost.style.top=(drag.ly-drag.oy)+"px"; } }
+  function reorderAt(x,y){
+    var el=document.elementFromPoint(x,y), t=el && el.closest && el.closest(".card");
+    if(!t || t===drag.card || t.hidden || !grid.contains(t)) return;
+    var from=picks.indexOf(drag.id), to=picks.indexOf(t.dataset.id);
+    if(from<0 || to<0) return;
+    picks.splice(from,1); picks.splice(to,0,drag.id); render();
+  }
+  function autoScroll(){
+    if(!drag || !drag.active) return;
+    var top=document.querySelector("header").getBoundingClientRect().bottom+40,
+        bottom=document.querySelector(".tray").getBoundingClientRect().top-40, v=0;
+    if(drag.ly<top) v=-Math.min(18,(top-drag.ly)/3);
+    else if(drag.ly>bottom) v=Math.min(18,(drag.ly-bottom)/3);
+    if(v){ window.scrollBy(0,v); reorderAt(drag.lx,drag.ly); }
+    rafId=requestAnimationFrame(autoScroll);
+  }
+  function endDrag(e){
+    if(!drag || (e && e.pointerId!==drag.pid)) return;
+    clearTimeout(drag.timer); cancelAnimationFrame(rafId);
+    var c=drag.card, was=drag.active; drag=null;
+    c.classList.remove("pressing","dragging");
+    if(ghost){ ghost.remove(); ghost=null; }
+    if(was){ persist(); render(); suppressClick=true; setTimeout(function(){ suppressClick=false; },400); }
+  }
 
   render();
 })();
