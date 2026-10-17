@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>이미지카드 고르기</title>
+<title>사진 고르기</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@600&display=swap">
 <style>
@@ -52,9 +52,9 @@ h1{font-family:var(--font-display); font-size:21px; margin:0; font-weight:600; l
 @media (min-width:640px){.grid{columns:3}}
 @media (min-width:980px){.grid{columns:4}}
 /* 담은 사진 보기: 담은 순서대로 왼쪽→오른쪽 줄 배치, 길게 눌러 끌어서 순서 바꾸기 */
-.grid.saved{columns:auto; display:grid; grid-template-columns:repeat(2,1fr); gap:10px; align-items:start}
-@media (min-width:640px){.grid.saved{grid-template-columns:repeat(3,1fr)}}
-@media (min-width:980px){.grid.saved{grid-template-columns:repeat(4,1fr)}}
+.grid.saved{columns:auto; display:grid; grid-template-columns:1fr; gap:14px; align-items:start; max-width:1400px; margin:0 auto}
+@media (min-width:760px){.grid.saved{grid-template-columns:repeat(2,1fr)}}
+.grid.saved .badge{font-size:20px}
 .grid.saved .card{margin:0; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none}
 .card img{pointer-events:none; -webkit-user-drag:none}
 .card.pressing{transform:scale(.96); transition:transform .35s ease}
@@ -128,7 +128,7 @@ h1{font-family:var(--font-display); font-size:21px; margin:0; font-weight:600; l
   <h1>이미지카드</h1>
   <div class="count" aria-live="polite">담은 사진 <b id="n">0</b> / 57</div>
   <div class="tabs" role="group" aria-label="보기">
-    <button id="tAll" aria-pressed="true">전체</button>
+    <button id="tAll" aria-pressed="true">Home</button>
     <button id="tSaved" aria-pressed="false">담은 사진</button>
   </div>
 </header>
@@ -146,7 +146,7 @@ h1{font-family:var(--font-display); font-size:21px; margin:0; font-weight:600; l
   <div class="vbar">
     <span class="vnum" id="vnum"></span>
     <div class="vbtns">
-      <button class="vbtn" id="vAll" type="button">전체로</button>
+      <button class="vbtn" id="vAll" type="button">Home</button>
       <button class="vbtn pri" id="vAdd" type="button">담기</button>
       <button class="vbtn" id="vDel" type="button">빼기</button>
       <button class="vbtn" id="vSaved" type="button">담은 사진으로</button>
@@ -188,6 +188,8 @@ h1{font-family:var(--font-display); font-size:21px; margin:0; font-weight:600; l
       c.classList.toggle("on",on);
       c.hidden = onlySaved && !on;
       c.style.order = on ? String(picks.indexOf(id)) : "";
+      var im=c.querySelector("img"), want=(onlySaved && on ? "img/l/" : "img/t/")+id+".jpg?v=2";
+      if(im.getAttribute("src")!==want) im.setAttribute("src",want);
     });
     grid.classList.toggle("saved",onlySaved);
     empty.hidden = !(onlySaved && picks.length===0);
